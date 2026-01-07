@@ -41,6 +41,8 @@ interface MyBackendApi {
 
     @GET("api/historial/{userId}")
     suspend fun getHistory(@Path("userId") userId: Int): List<com.example.practica5.model.HistoryItem>
+    @GET("api/admin/favoritos")
+    suspend fun getAllFavorites(): List<FavoriteResponse>
 }
 
 object RetrofitClient {

@@ -14,21 +14,25 @@ import kotlinx.coroutines.flow.Flow
 // 1. El DAO (Data Access Object): Las instrucciones SQL
 @Dao
 interface ShowDao {
-    // Obtener solo los favoritos (Flow actualiza la UI automáticamente si algo cambia)
-    @Query("SELECT * FROM shows_table WHERE isFavorite = 1")
-    fun getFavorites(): Flow<List<ShowEntity>>
+    // Solo devuelve los favoritos DEL usuario actual
+    @Query("SELECT * FROM shows_table WHERE isFavorite = 1 AND userId = :userId")
+    fun getFavorites(userId: Int): Flow<List<ShowEntity>>
 
-    // Insertar o Actualizar una serie
+    // Insertar (Reemplaza si ya existe para ese usuario)
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertShow(show: ShowEntity)
 
-    // Borrar favorito (opcional)
-    @Query("DELETE FROM shows_table WHERE id = :showId")
-    suspend fun deleteFavorite(showId: Int)
+    // Borrar favorito específico de un usuario
+    @Query("DELETE FROM shows_table WHERE id = :showId AND userId = :userId")
+    suspend fun deleteFavorite(showId: Int, userId: Int)
 
-    // Verificar si ya existe (útil para pintar el corazón de 'me gusta')
-    @Query("SELECT EXISTS(SELECT * FROM shows_table WHERE id = :id AND isFavorite = 1)")
-    suspend fun isFavorite(id: Int): Boolean
+    // Verificar si es favorito (para pintar el corazón)
+    @Query("SELECT EXISTS(SELECT * FROM shows_table WHERE id = :id AND userId = :userId AND isFavorite = 1)")
+    suspend fun isFavorite(id: Int, userId: Int): Boolean
+
+    // NUEVO: Para recomendaciones inteligentes (obtener lista inmediata)
+    @Query("SELECT * FROM shows_table WHERE isFavorite = 1 AND userId = :userId LIMIT 1")
+    suspend fun getOneFavorite(userId: Int): ShowEntity?
 }
 
 // 2. La Base de Datos

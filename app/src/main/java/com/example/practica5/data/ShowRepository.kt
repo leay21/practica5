@@ -13,40 +13,53 @@ class ShowRepository(
 ) {
 
     // --- PARTE 1: DATOS LOCALES (Fuente de la verdad) ---
-    // La UI observará esto. Si algo cambia aquí, la pantalla se actualiza sola.
-    val allFavorites: Flow<List<ShowEntity>> = showDao.getFavorites()
+
+    // CAMBIO: Ahora pedimos el userId para filtrar la lista.
+    // Esto soluciona que todos vean los mismos favoritos.
+    fun getFavorites(userId: Int): Flow<List<ShowEntity>> {
+        return showDao.getFavorites(userId)
+    }
+
+    // NUEVO: Método auxiliar para el sistema de recomendaciones.
+    // Obtiene 1 favorito cualquiera de este usuario para usarlo como semilla.
+    suspend fun getAnyFavorite(userId: Int): ShowEntity? {
+        return showDao.getOneFavorite(userId)
+    }
 
     // --- PARTE 2: BÚSQUEDA EN TVMAZE (API PÚBLICA) ---
     suspend fun searchShows(query: String): List<ShowEntity> {
         return try {
             val response = tvApi.searchShows(query)
-            // Convertimos la respuesta de la API a nuestra entidad ShowEntity
             response.mapNotNull { item ->
-                // Filtramos resultados sin imagen o nombre para que se vea bonito
                 if (item.show.image?.medium != null) {
                     ShowEntity(
                         id = item.show.id,
+                        userId = 0, // CAMBIO: Ponemos 0 temporalmente (no se guarda aún)
                         name = item.show.name,
                         imageUrl = item.show.image.medium,
                         summary = item.show.summary,
-                        isFavorite = false // Por defecto no es favorito al buscar
+                        isFavorite = false
                     )
                 } else null
             }
         } catch (e: Exception) {
             Log.e("REPO", "Error buscando en API: ${e.message}")
-            emptyList() // Si no hay internet, devolvemos lista vacía (o podrías buscar en local)
+            emptyList()
         }
     }
 
     // --- PARTE 3: SINCRONIZACIÓN (OFFLINE FIRST) ---
     suspend fun addFavorite(show: ShowEntity, userId: Int) {
-        // 1. Guardar en LOCAL (Room) inmediatamente.
-        // Esto garantiza que la app funcione RÁPIDO y SIN INTERNET.
-        val favoriteShow = show.copy(isFavorite = true)
+        // 1. Guardar en LOCAL (Room)
+        // CAMBIO: Es vital asignar el userId AQUÍ antes de guardar.
+        // Usamos .copy() para crear una versión nueva del objeto con el ID y flag correctos.
+        val favoriteShow = show.copy(
+            isFavorite = true,
+            userId = userId
+        )
         showDao.insertShow(favoriteShow)
 
-        // 2. Intentar enviar a TU SERVIDOR (Node.js)
+        // 2. Sincronizar con Nube (Node.js)
         try {
             val request = FavoriteRequest(
                 userId = userId,
@@ -61,20 +74,18 @@ class ShowRepository(
                 Log.d("SYNC", "Error en servidor: ${response.code()}")
             }
         } catch (e: Exception) {
-            // Si falla (ej. sin internet), no pasa nada grave.
-            // El dato ya está guardado en local (paso 1).
-            Log.e("SYNC", "Sin conexión al servidor. Se sincronizará luego (lógica pendiente).")
+            Log.e("SYNC", "Sin conexión. Guardado solo localmente.")
         }
     }
 
-    suspend fun removeFavorite(showId: Int) {
-        showDao.deleteFavorite(showId)
-        // Opcional: Llamar a API para borrar en remoto también
+    // CAMBIO: Pedimos userId para borrar solo el favorito de ESTE usuario
+    suspend fun removeFavorite(showId: Int, userId: Int) {
+        showDao.deleteFavorite(showId, userId)
     }
+
+    // --- HISTORIAL ---
     suspend fun saveSearchHistory(userId: Int, query: String) {
         try {
-            // "Fire and forget": Lo enviamos y no nos preocupa mucho si falla o no,
-            // para no detener la búsqueda del usuario.
             myApi.addToHistory(HistoryRequest(userId, query))
             Log.d("REPO", "Historial guardado: $query")
         } catch (e: Exception) {
@@ -82,6 +93,7 @@ class ShowRepository(
         }
     }
 
+    // CAMBIO: Pedimos userId para que el servidor decida qué devolver (Admin vs User)
     suspend fun fetchHistory(userId: Int): List<com.example.practica5.model.HistoryItem> {
         return try {
             myApi.getHistory(userId)

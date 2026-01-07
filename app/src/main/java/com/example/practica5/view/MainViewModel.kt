@@ -5,6 +5,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.asLiveData
+import androidx.lifecycle.switchMap // Importante para que funcione el switchMap
 import androidx.lifecycle.viewModelScope
 import com.example.practica5.data.ShowRepository
 import com.example.practica5.model.ShowEntity
@@ -12,76 +13,101 @@ import kotlinx.coroutines.launch
 
 class MainViewModel(private val repository: ShowRepository) : ViewModel() {
 
-    // UserId simulado (en una app real vendría del Login)
+    // UserId actual (se llena desde MainActivity al iniciar)
     var currentUserId = -1
 
-    // 1. Lista de resultados de búsqueda (Observable)
+    // 1. LiveData para controlar si estamos viendo recomendaciones o búsquedas
+    val isRecommendationActive = MutableLiveData(false)
+
+    // 2. Lista de resultados de búsqueda (Observable)
     private val _searchResults = MutableLiveData<List<ShowEntity>>()
     val searchResults: LiveData<List<ShowEntity>> = _searchResults
 
-    // 2. Lista de Favoritos (Viene directo de la BD Local)
-    // Convertimos el Flow de Room a LiveData para la UI
-    val favorites: LiveData<List<ShowEntity>> = repository.allFavorites.asLiveData()
+    // 3. Gestión reactiva del usuario y sus favoritos
+    private val _currentUserId = MutableLiveData<Int>()
 
-    // Acción: Buscar serie
+    // Esta "magia" hace que cuando _currentUserId cambie, se actualice la consulta a Room
+    // automáticamente con el ID del nuevo usuario.
+    val favorites: LiveData<List<ShowEntity>> = _currentUserId.switchMap { id ->
+        repository.getFavorites(id).asLiveData()
+    }
+
+    // Método para setear el usuario al iniciar la Activity
+    fun setUserId(id: Int) {
+        currentUserId = id
+        _currentUserId.value = id
+    }
+
+    // --- ACCIONES ---
+
+    // A. BUSCAR SERIE
     fun search(query: String) {
+        // Marcamos que NO es recomendación, es una búsqueda explícita
+        isRecommendationActive.postValue(false)
+
         viewModelScope.launch {
             if (query.isNotEmpty()) {
-                // 1. (NUEVO) Guardar en historial remoto
+                // 1. Guardar en historial remoto (si hay usuario)
                 if (currentUserId != -1) {
-                    // Lanzamos una corrutina paralela para que no frene la búsqueda
                     launch { repository.saveSearchHistory(currentUserId, query) }
                 }
 
-                // 2. Buscar en API pública (Código existente)
+                // 2. Buscar en API pública
                 val results = repository.searchShows(query)
                 _searchResults.postValue(results)
             }
         }
     }
 
-    // Acción: Guardar favorito
+    // B. CARGAR RECOMENDACIONES (Lógica Inteligente)
+    fun loadRecommendations() {
+        // Marcamos que SÍ es recomendación
+        isRecommendationActive.postValue(true)
+
+        viewModelScope.launch {
+            if (currentUserId == -1) return@launch
+
+            // 1. Semilla por defecto (si el usuario es nuevo y no tiene nada)
+            var seedQuery = "Star Wars"
+
+            // 2. Consultamos a la BD local si tiene ALGÚN favorito
+            val favorite = repository.getAnyFavorite(currentUserId)
+
+            if (favorite != null) {
+                // ¡Tiene favoritos! Usamos el nombre de uno para buscar similares
+                seedQuery = favorite.name
+            }
+
+            // 3. Buscamos en la API usando esa semilla
+            val results = repository.searchShows(seedQuery)
+
+            // 4. (Opcional) Podríamos filtrar los que ya tiene en favoritos aquí
+            // val misFavs = favorites.value ?: emptyList()
+            // val filtered = results.filter { r -> misFavs.none { f -> f.id == r.id } }
+
+            _searchResults.postValue(results)
+        }
+    }
+
+    // C. AGREGAR FAVORITO
     fun addToFavorites(show: ShowEntity) {
-        if (currentUserId == -1) return // Protección
+        if (currentUserId == -1) return
         viewModelScope.launch {
             repository.addFavorite(show, currentUserId)
         }
     }
 
-    // Acción: Borrar favorito
+    // D. BORRAR FAVORITO
     fun removeFromFavorites(showId: Int) {
+        if (currentUserId == -1) return
         viewModelScope.launch {
-            repository.removeFavorite(showId)
-        }
-    }
-
-    // Agrega una variable para saber si estamos viendo recomendaciones
-    val isRecommendationActive = MutableLiveData(false)
-
-    fun loadRecommendations() {
-        viewModelScope.launch {
-            isRecommendationActive.postValue(true)
-
-            // 1. Obtener lista actual de favoritos (usamos first() para obtener el valor actual del Flow)
-            // Nota: Necesitas que 'repository.allFavorites' sea accesible
-            // Como Flow es asíncrono, un truco rápido es guardar una copia local en memoria
-            // O hacer una consulta simple. Para esta práctica, usaremos un truco:
-            // Si el usuario no ha buscado nada, asumimos que quiere ver recomendaciones.
-
-            // Vamos a simularlo pidiendo al repositorio buscar algo basado en un género popular
-            // o idealmente, basado en el último favorito guardado si tuviéramos esa lista en memoria.
-
-            // Estrategia Simple y Efectiva:
-            // Buscamos una serie popular fija como "semilla" si no hay datos complejos
-            val seedQuery = "Star Wars" // O "Marvel", "DC", etc.
-
-            val recommendations = repository.searchShows(seedQuery)
-            _searchResults.postValue(recommendations)
+            // CORRECCIÓN: Ahora pasamos también el userId al repositorio
+            repository.removeFavorite(showId, currentUserId)
         }
     }
 }
 
-// Boilerplate: Fábrica para poder pasarle el Repository al ViewModel
+// Boilerplate: Fábrica del ViewModel
 class MainViewModelFactory(private val repository: ShowRepository) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(MainViewModel::class.java)) {

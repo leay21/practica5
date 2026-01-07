@@ -95,6 +95,12 @@ app.get('/api/historial/:userId', (req, res) => {
     }
 });
 
+// Endpoint Admin: Ver TODOS los favoritos agrupados
+app.get('/api/admin/favoritos', (req, res) => {
+    // Devolvemos la lista cruda, el frontend se encargará de agruparla
+    res.json(favoritos);
+});
+
 app.listen(PORT, () => {
     console.log(`Servidor Roles corriendo en http://localhost:${PORT}`);
 });

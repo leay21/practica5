@@ -4,13 +4,15 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 // 1. Esta es la tabla para la base de datos local (Room)
-@Entity(tableName = "shows_table")
+// La clave primaria ahora es la combinación de (id, userId)
+@Entity(tableName = "shows_table", primaryKeys = ["id", "userId"])
 data class ShowEntity(
-    @PrimaryKey val id: Int,
+    val id: Int, // ID de la serie
+    val userId: Int, // ID del usuario dueño de este favorito <--- NUEVO
     val name: String,
     val imageUrl: String?,
     val summary: String?,
-    var isFavorite: Boolean = false // Para saber si lo guardamos nosotros
+    var isFavorite: Boolean = false
 )
 
 // 2. Clases auxiliares para leer la respuesta de TVMaze (JSON)
