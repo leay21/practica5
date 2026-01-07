@@ -9,6 +9,8 @@ import androidx.lifecycle.switchMap
 import androidx.lifecycle.viewModelScope
 import com.example.practica5.data.ShowRepository
 import com.example.practica5.model.ShowEntity
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 
 class MainViewModel(private val repository: ShowRepository) : ViewModel() {
@@ -62,16 +64,31 @@ class MainViewModel(private val repository: ShowRepository) : ViewModel() {
     }
 
     fun loadRecommendations() {
-        _isShowingFavorites.value = false
+        // Cambiamos el estado de la vista
+        // NOTA: Usa la función showSearch() que creamos en el paso anterior si la tienes,
+        // o modifica el LiveData directamente si lo cambiaste a MutableLiveData público.
+        // Aquí asumo la corrección anterior:
+        showSearch()
+
         viewModelScope.launch {
             if (currentUserId == -1) return@launch
 
-            val favorite = repository.getAnyFavorite(currentUserId)
-            val seedQuery = favorite?.name ?: "Star Wars"
+            // 1. Obtener las 3 "semillas" aleatorias (Ej: "Batman", "Office", "Friends")
+            val seeds = repository.getRecommendationSeeds(currentUserId)
 
-            // CAMBIO: Pasamos currentUserId
-            val results = repository.searchShows(seedQuery, currentUserId)
-            _searchResults.postValue(results)
+            // 2. Lanzar 3 búsquedas en PARALELO (simultáneas)
+            // Usamos 'async' para que no espere a una para empezar la otra
+            val deferredResults = seeds.map { query ->
+                async { repository.searchShows(query, currentUserId) }
+            }
+
+            // 3. Esperar a que terminen todas y juntar los resultados
+            val resultsOfAll = deferredResults.awaitAll() // Espera a las 3
+                .flatten() // Convierte lista de listas en una sola lista gigante
+                .distinctBy { it.id } // Elimina series repetidas
+                .shuffled() // ¡Mezcla todo para que se sienta como una recomendación real!
+
+            _searchResults.postValue(resultsOfAll)
         }
     }
 

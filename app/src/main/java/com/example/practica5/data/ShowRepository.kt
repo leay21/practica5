@@ -112,4 +112,27 @@ class ShowRepository(
             emptyList()
         }
     }
+    // Genera una lista de 3 palabras clave basadas en tus gustos
+    suspend fun getRecommendationSeeds(userId: Int): List<String> {
+        // 1. Obtener nombres de tus favoritos locales
+        val favoriteNames = showDao.getFavoriteNames(userId)
+
+        // 2. Obtener tu historial del servidor (si hay conexión)
+        val historyQueries = try {
+            myApi.getHistory(userId).map { it.query }
+        } catch (e: Exception) {
+            emptyList() // Si falla el servidor, no pasa nada
+        }
+
+        // 3. Juntar todo, quitar duplicados y desordenar
+        val allInterests = (favoriteNames + historyQueries).distinct()
+
+        // 4. Si no tiene gustos, devolvemos temas por defecto.
+        // Si tiene, devolvemos 3 al azar.
+        return if (allInterests.isEmpty()) {
+            listOf("Star Wars", "Marvel", "Comedy")
+        } else {
+            allInterests.shuffled().take(3)
+        }
+    }
 }

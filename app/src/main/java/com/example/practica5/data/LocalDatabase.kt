@@ -31,6 +31,9 @@ interface ShowDao {
     // NUEVO: Obtener solo los IDs para hacer cruce de información rápido
     @Query("SELECT id FROM shows_table WHERE isFavorite = 1 AND userId = :userId")
     suspend fun getFavoriteIds(userId: Int): List<Int>
+    // NUEVO: Obtener solo los nombres de los favoritos para usarlos como palabras clave
+    @Query("SELECT name FROM shows_table WHERE isFavorite = 1 AND userId = :userId")
+    suspend fun getFavoriteNames(userId: Int): List<String>
 }
 
 // 2. La Base de Datos
