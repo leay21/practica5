@@ -28,6 +28,9 @@ interface ShowDao {
 
     @Query("SELECT EXISTS(SELECT * FROM shows_table WHERE id = :id AND userId = :userId AND isFavorite = 1)")
     suspend fun isFavorite(id: Int, userId: Int): Boolean
+    // NUEVO: Obtener solo los IDs para hacer cruce de información rápido
+    @Query("SELECT id FROM shows_table WHERE isFavorite = 1 AND userId = :userId")
+    suspend fun getFavoriteIds(userId: Int): List<Int>
 }
 
 // 2. La Base de Datos

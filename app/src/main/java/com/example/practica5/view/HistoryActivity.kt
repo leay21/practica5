@@ -2,12 +2,12 @@ package com.example.practica5.view
 
 import android.os.Bundle
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.example.practica5.R
 import com.example.practica5.data.RetrofitClient
 import com.example.practica5.data.SessionManager
-import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
 class HistoryActivity : AppCompatActivity() {
@@ -21,68 +21,82 @@ class HistoryActivity : AppCompatActivity() {
         val myId = session.getUserId()
 
         lifecycleScope.launch {
-            tvLog.text = "Cargando datos del servidor..."
+            tvLog.text = "Cargando datos..."
 
             try {
                 val api = RetrofitClient.myApi
                 val sb = StringBuilder()
 
                 if (role == "admin") {
-                    // MODO ADMIN: Cargar TODO en paralelo
-                    // Usamos async para pedir historial y favoritos a la vez
-                    val historyDeferred = async { api.getHistory(myId) } // El server decide enviar todo pq soy admin
-                    val favoritesDeferred = async { api.getAllFavorites() } // Nuevo endpoint
+                    // MODO ADMIN: Ejecutamos secuencial para evitar crashes de concurrencia simple
+                    sb.append("--- MODO ADMINISTRADOR ---\n\n")
 
-                    val history = historyDeferred.await()
-                    val favorites = favoritesDeferred.await()
+                    // 1. Obtener Historial Global
+                    val history = try {
+                        api.getHistory(myId)
+                    } catch (e: Exception) {
+                        sb.append("⚠️ Error cargando historial: ${e.message}\n")
+                        emptyList()
+                    }
 
-                    // Agrupar por usuarios (IDs únicos)
+                    // 2. Obtener Favoritos Globales
+                    val favorites = try {
+                        api.getAllFavorites()
+                    } catch (e: Exception) {
+                        // Si falla este endpoint, no crasheamos, solo avisamos
+                        sb.append("⚠️ Error cargando favoritos (revisa server.js): ${e.message}\n")
+                        emptyList()
+                    }
+
+                    // 3. Agrupar y Mostrar
                     val allUserIds = (history.map { it.userId } + favorites.map { it.userId }).distinct().sorted()
 
-                    sb.append("--- REPORTE GLOBAL (ADMIN) ---\n\n")
+                    if (allUserIds.isEmpty()) {
+                        sb.append("No hay datos registrados en el servidor.")
+                    }
 
                     for (uid in allUserIds) {
                         sb.append("👤 USUARIO ID: $uid\n")
                         sb.append("====================\n")
 
-                        // Imprimir Historial de este usuario
-                        val userHistory = history.filter { it.userId == uid }
-                        if (userHistory.isNotEmpty()) {
-                            sb.append("🕒 Historial Búsquedas:\n")
-                            userHistory.reversed().forEach {
-                                sb.append("   • \"${it.query}\" (${it.timestamp})\n")
-                            }
-                        } else {
-                            sb.append("🕒 Historial: (Vacío)\n")
-                        }
-
-                        // Imprimir Favoritos de este usuario
                         val userFavs = favorites.filter { it.userId == uid }
                         if (userFavs.isNotEmpty()) {
-                            sb.append("\n⭐ Favoritos Guardados:\n")
-                            userFavs.forEach {
-                                sb.append("   • ${it.title} (ID: ${it.showId})\n")
-                            }
+                            sb.append("⭐ Favoritos (${userFavs.size}):\n")
+                            userFavs.forEach { f -> sb.append("   - ${f.title}\n") }
                         } else {
-                            sb.append("\n⭐ Favoritos: (Ninguno)\n")
+                            sb.append("⭐ Favoritos: Ninguno\n")
                         }
-                        sb.append("\n\n")
+
+                        sb.append("\n")
+
+                        val userHistory = history.filter { it.userId == uid }
+                        if (userHistory.isNotEmpty()) {
+                            sb.append("🕒 Historial (${userHistory.size}):\n")
+                            userHistory.reversed().forEach { h -> sb.append("   - ${h.query} (${h.timestamp})\n") }
+                        } else {
+                            sb.append("🕒 Historial: Vacío\n")
+                        }
+                        sb.append("\n--------------------\n\n")
                     }
 
                 } else {
-                    // MODO USUARIO NORMAL: Solo mi historial
+                    // MODO USUARIO
                     val history = api.getHistory(myId)
                     sb.append("--- MI HISTORIAL ---\n\n")
+                    if (history.isEmpty()) sb.append("No tienes búsquedas recientes.")
+
                     history.reversed().forEach {
-                        sb.append("🔍 \"${it.query}\"\n")
-                        sb.append("   Fecha: ${it.timestamp}\n\n")
+                        sb.append("🔍 ${it.query}\n")
+                        sb.append("   ${it.timestamp}\n\n")
                     }
                 }
 
                 tvLog.text = sb.toString()
 
             } catch (e: Exception) {
-                tvLog.text = "Error al obtener datos: ${e.message}\nRevisa que el servidor esté corriendo."
+                e.printStackTrace()
+                tvLog.text = "Error crítico de conexión:\n${e.localizedMessage}"
+                Toast.makeText(this@HistoryActivity, "Error al conectar con servidor", Toast.LENGTH_SHORT).show()
             }
         }
     }

@@ -27,23 +27,34 @@ class ShowRepository(
     }
 
     // --- PARTE 2: BÚSQUEDA EN TVMAZE (API PÚBLICA) ---
-    suspend fun searchShows(query: String): List<ShowEntity> {
+    suspend fun searchShows(query: String, userId: Int): List<ShowEntity> {
         return try {
+            // 1. Obtenemos los IDs de los favoritos que ya tenemos guardados
+            val myFavoriteIds = showDao.getFavoriteIds(userId)
+
+            // 2. Buscamos en la API
             val response = tvApi.searchShows(query)
+
+            // 3. Cruzamos la información
             response.mapNotNull { item ->
                 if (item.show.image?.medium != null) {
+                    // ¿Esta serie de internet está en mis favoritos locales?
+                    val isAlreadyFav = myFavoriteIds.contains(item.show.id)
+
                     ShowEntity(
                         id = item.show.id,
-                        userId = 0, // CAMBIO: Ponemos 0 temporalmente (no se guarda aún)
+                        // Si ya es favorito, mantenemos el userId real. Si no, 0.
+                        userId = if (isAlreadyFav) userId else 0,
                         name = item.show.name,
                         imageUrl = item.show.image.medium,
                         summary = item.show.summary,
-                        isFavorite = false
+                        // ¡AQUÍ ESTÁ LA MAGIA! Si está en la lista, marcamos true
+                        isFavorite = isAlreadyFav
                     )
                 } else null
             }
         } catch (e: Exception) {
-            Log.e("REPO", "Error buscando en API: ${e.message}")
+            Log.e("REPO", "Error buscando: ${e.message}")
             emptyList()
         }
     }

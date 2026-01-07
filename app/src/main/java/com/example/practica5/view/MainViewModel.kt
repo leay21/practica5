@@ -47,32 +47,30 @@ class MainViewModel(private val repository: ShowRepository) : ViewModel() {
         _isShowingFavorites.value = false
     }
 
-    // 3. Buscar Serie
     fun search(query: String) {
-        _isShowingFavorites.value = false // Cambiamos a modo búsqueda
-
+        _isShowingFavorites.value = false
         viewModelScope.launch {
             if (query.isNotEmpty()) {
                 if (currentUserId != -1) {
                     launch { repository.saveSearchHistory(currentUserId, query) }
                 }
-                val results = repository.searchShows(query)
+                // CAMBIO: Pasamos currentUserId
+                val results = repository.searchShows(query, currentUserId)
                 _searchResults.postValue(results)
             }
         }
     }
 
-    // 4. Recomendaciones
     fun loadRecommendations() {
-        _isShowingFavorites.value = false // Cambiamos a modo búsqueda
-
+        _isShowingFavorites.value = false
         viewModelScope.launch {
             if (currentUserId == -1) return@launch
 
             val favorite = repository.getAnyFavorite(currentUserId)
             val seedQuery = favorite?.name ?: "Star Wars"
 
-            val results = repository.searchShows(seedQuery)
+            // CAMBIO: Pasamos currentUserId
+            val results = repository.searchShows(seedQuery, currentUserId)
             _searchResults.postValue(results)
         }
     }
