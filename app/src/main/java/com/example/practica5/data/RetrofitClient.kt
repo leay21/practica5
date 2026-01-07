@@ -9,9 +9,11 @@ import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
-import com.example.practica5.model.FavoriteRequest // Asegura que estos imports sean correctos
+import com.example.practica5.model.FavoriteRequest
 import com.example.practica5.model.FavoriteResponse
 import com.example.practica5.model.TvMazeResponse
+import com.example.practica5.model.LoginResponse
+import com.example.practica5.model.LoginRequest
 
 interface TvMazeApi {
     @GET("search/shows")
@@ -24,6 +26,9 @@ interface MyBackendApi {
 
     @GET("api/favoritos/{userId}")
     suspend fun getRemoteFavorites(@Path("userId") userId: Int): List<FavoriteResponse>
+
+    @POST("api/login")
+    suspend fun login(@Body request: LoginRequest): retrofit2.Response<LoginResponse>
 }
 
 object RetrofitClient {

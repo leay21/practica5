@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
 class MainViewModel(private val repository: ShowRepository) : ViewModel() {
 
     // UserId simulado (en una app real vendría del Login)
-    private val currentUserId = 1
+    var currentUserId = -1
 
     // 1. Lista de resultados de búsqueda (Observable)
     private val _searchResults = MutableLiveData<List<ShowEntity>>()
@@ -39,6 +39,7 @@ class MainViewModel(private val repository: ShowRepository) : ViewModel() {
 
     // Acción: Guardar favorito
     fun addToFavorites(show: ShowEntity) {
+        if (currentUserId == -1) return // Protección
         viewModelScope.launch {
             repository.addFavorite(show, currentUserId)
         }

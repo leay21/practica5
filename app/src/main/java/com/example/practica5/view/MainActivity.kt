@@ -1,6 +1,9 @@
 package com.example.practica5.view
 
+import android.content.Intent // Nuevo import
 import android.os.Bundle
+import android.view.Menu // Nuevo import
+import android.view.MenuItem // Nuevo import
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
@@ -13,6 +16,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.practica5.R
 import com.example.practica5.data.AppDatabase
 import com.example.practica5.data.RetrofitClient
+import com.example.practica5.data.SessionManager // Nuevo import
 import com.example.practica5.data.ShowRepository
 
 class MainActivity : AppCompatActivity() {
@@ -27,7 +31,6 @@ class MainActivity : AppCompatActivity() {
 
     // Inicialización perezosa del ViewModel
     private val viewModel: MainViewModel by viewModels {
-        // Construimos las dependencias manualmente (Inyección de Dependencias manual)
         val database = AppDatabase.getDatabase(applicationContext)
         val repository = ShowRepository(
             database.showDao(),
@@ -39,16 +42,36 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // -----------------------------------------------------------
+        // 1. (NUEVO) VERIFICAR SESIÓN ANTES DE CARGAR LA VISTA
+        // -----------------------------------------------------------
+        val session = SessionManager(this)
+        if (!session.isLoggedIn()) {
+            // Si no está logueado, mandar al Login y cerrar esta pantalla
+            startActivity(Intent(this, LoginActivity::class.java))
+            finish()
+            return
+        }
+
+        // 2. (NUEVO) CONFIGURAR EL USUARIO EN EL VIEWMODEL
+        // Recuperamos el ID guardado y se lo pasamos a la lógica
+        viewModel.currentUserId = session.getUserId()
+
+        // Opcional: Poner el nombre del usuario en la barra de arriba
+        supportActionBar?.title = "Hola, ${session.getUserName()}"
+        // -----------------------------------------------------------
+
         setContentView(R.layout.activity_main)
 
-        // 1. Vincular Vistas
+        // Vincular Vistas
         etSearch = findViewById(R.id.etSearch)
         btnSearch = findViewById(R.id.btnSearch)
         btnViewFavorites = findViewById(R.id.btnViewFavorites)
         rvShows = findViewById(R.id.rvShows)
         progressBar = findViewById(R.id.progressBar)
 
-        // 2. Configurar RecyclerView
+        // Configurar RecyclerView
         adapter = ShowsAdapter { showToAdd ->
             // Acción al dar click en favorito
             viewModel.addToFavorites(showToAdd)
@@ -57,7 +80,7 @@ class MainActivity : AppCompatActivity() {
         rvShows.layoutManager = LinearLayoutManager(this)
         rvShows.adapter = adapter
 
-        // 3. OBSERVAR los resultados de Búsqueda (API Pública)
+        // OBSERVAR resultados de Búsqueda
         viewModel.searchResults.observe(this) { shows ->
             progressBar.visibility = View.GONE
             adapter.submitList(shows)
@@ -66,36 +89,29 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // 4. OBSERVAR la lista de Favoritos (Base de Datos Local)
-        // Nota: Esto se actualizará solo si decidimos mostrar favoritos
+        // OBSERVAR lista de Favoritos
         viewModel.favorites.observe(this) { favoriteShows ->
-            // Solo actualizamos la lista si el usuario pidió ver favoritos
-            // (Para simplificar, usaremos un flag o lógica de botones simple)
+            // La lista se actualiza automáticamente gracias a Room
         }
 
-        // 5. Configurar Botón BUSCAR
+        // Configurar Botón BUSCAR
         btnSearch.setOnClickListener {
             val query = etSearch.text.toString()
             if (query.isNotEmpty()) {
                 progressBar.visibility = View.VISIBLE
-                // Dejamos de observar favoritos y observamos búsqueda
                 viewModel.favorites.removeObservers(this)
                 viewModel.searchResults.observe(this) { list ->
                     progressBar.visibility = View.GONE
                     adapter.submitList(list)
                 }
-
                 viewModel.search(query)
-                // Ocultar teclado (opcional, buena práctica)
             }
         }
 
-        // 6. Configurar Botón VER FAVORITOS
+        // Configurar Botón VER FAVORITOS
         btnViewFavorites.setOnClickListener {
             etSearch.text.clear()
-            // Dejamos de observar búsqueda y observamos favoritos
             viewModel.searchResults.removeObservers(this)
-
             viewModel.favorites.observe(this) { localFavorites ->
                 adapter.submitList(localFavorites)
                 if (localFavorites.isEmpty()) {
@@ -103,5 +119,30 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    // -----------------------------------------------------------
+    // 3. (NUEVO) MENU PARA CERRAR SESIÓN (LOGOUT)
+    // -----------------------------------------------------------
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        // Agregamos un botón "Salir" programáticamente a la barra superior
+        menu?.add(0, 1, 0, "Cerrar Sesión")?.setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        if (item.itemId == 1) { // Si pulsaron nuestro botón "Cerrar Sesión"
+            val session = SessionManager(this)
+            session.logout() // Borrar datos
+
+            // Volver al login
+            val intent = Intent(this, LoginActivity::class.java)
+            // Limpiar la pila de actividades para que no puedan volver atrás
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            startActivity(intent)
+            finish()
+            return true
+        }
+        return super.onOptionsItemSelected(item)
     }
 }
