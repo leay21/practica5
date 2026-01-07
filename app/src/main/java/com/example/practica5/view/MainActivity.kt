@@ -125,9 +125,21 @@ class MainActivity : AppCompatActivity() {
     // 3. (NUEVO) MENU PARA CERRAR SESIÓN (LOGOUT)
     // -----------------------------------------------------------
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
-        // Agregamos un botón "Salir" programáticamente a la barra superior
-        menu?.add(0, 1, 0, "Cerrar Sesión")?.setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
-        menu?.add(0, 2, 0, "Ver Historial (Admin)")
+        val session = SessionManager(this)
+        val role = session.getUserRole()
+
+        menu?.add(0, 1, 0, "Cerrar Sesión")
+
+        // Lógica de Roles en el Menú
+        if (role == "admin") {
+            menu?.add(0, 2, 0, "Ver Historial Global (Admin)")
+        } else {
+            menu?.add(0, 2, 0, "Ver Mi Historial")
+        }
+
+        // Opción de Recomendaciones para todos
+        menu?.add(0, 3, 0, "🌟 Ver Recomendaciones")
+
         return true
     }
 
@@ -146,6 +158,13 @@ class MainActivity : AppCompatActivity() {
         }
         if (item.itemId == 2) {
             startActivity(Intent(this, HistoryActivity::class.java))
+            return true
+        }
+        if (item.itemId == 3) { // Recomendaciones
+            etSearch.text.clear() // Limpiar buscador
+            Toast.makeText(this, "Buscando series recomendadas...", Toast.LENGTH_SHORT).show()
+            viewModel.loadRecommendations()
+            supportActionBar?.title = "Recomendaciones para ti"
             return true
         }
         return super.onOptionsItemSelected(item)

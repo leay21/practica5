@@ -53,8 +53,9 @@ class LoginActivity : AppCompatActivity() {
                         val response = RetrofitClient.myApi.login(LoginRequest(email, pass))
                         if (response.isSuccessful && response.body()?.success == true) {
                             val data = response.body()!!
+                            val rol = data.user?.rol ?: "user"
                             // GUARDAMOS LA SESIÓN
-                            session.saveUserSession(data.user!!.id, data.token!!, data.user.nombre)
+                            session.saveUserSession(data.user!!.id, data.token!!, data.user.nombre, rol)
                             Toast.makeText(this@LoginActivity, "Bienvenido ${data.user.nombre}", Toast.LENGTH_SHORT).show()
                             goToMain()
                         } else {

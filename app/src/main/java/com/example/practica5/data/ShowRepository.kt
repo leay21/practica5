@@ -82,9 +82,9 @@ class ShowRepository(
         }
     }
 
-    suspend fun fetchHistory(): List<com.example.practica5.model.HistoryItem> {
+    suspend fun fetchHistory(userId: Int): List<com.example.practica5.model.HistoryItem> {
         return try {
-            myApi.getHistory()
+            myApi.getHistory(userId)
         } catch (e: Exception) {
             emptyList()
         }

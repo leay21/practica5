@@ -7,6 +7,7 @@ import androidx.lifecycle.lifecycleScope
 import com.example.practica5.R
 import com.example.practica5.data.AppDatabase
 import com.example.practica5.data.RetrofitClient
+import com.example.practica5.data.SessionManager
 import com.example.practica5.data.ShowRepository
 import kotlinx.coroutines.launch
 
@@ -20,9 +21,11 @@ class HistoryActivity : AppCompatActivity() {
         // Instancia rápida del repositorio (en app real usarías ViewModel e inyección)
         val db = AppDatabase.getDatabase(this)
         val repo = ShowRepository(db.showDao(), RetrofitClient.myApi, RetrofitClient.tvMazeApi)
+        val session = SessionManager(this) // Necesitamos el SessionManager
+        val currentUserId = session.getUserId()
 
         lifecycleScope.launch {
-            val historyList = repo.fetchHistory()
+            val historyList = repo.fetchHistory(currentUserId)
             if (historyList.isNotEmpty()) {
                 val sb = StringBuilder()
                 // Mostrar los últimos primero

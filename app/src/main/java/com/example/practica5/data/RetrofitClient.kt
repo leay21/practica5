@@ -39,8 +39,8 @@ interface MyBackendApi {
     @POST("api/historial")
     suspend fun addToHistory(@Body request: HistoryRequest): retrofit2.Response<Void>
 
-    @GET("api/admin/historial") // OJO: Más adelante ajustaremos este para soportar /api/historial/:userId
-    suspend fun getHistory(): List<com.example.practica5.model.HistoryItem>
+    @GET("api/historial/{userId}")
+    suspend fun getHistory(@Path("userId") userId: Int): List<com.example.practica5.model.HistoryItem>
 }
 
 object RetrofitClient {

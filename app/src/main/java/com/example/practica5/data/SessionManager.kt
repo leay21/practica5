@@ -6,11 +6,12 @@ import android.content.SharedPreferences
 class SessionManager(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("app_session", Context.MODE_PRIVATE)
 
-    fun saveUserSession(userId: Int, token: String, name: String) {
+    fun saveUserSession(userId: Int, token: String, name: String, role: String) {
         val editor = prefs.edit()
         editor.putInt("USER_ID", userId)
         editor.putString("AUTH_TOKEN", token)
         editor.putString("USER_NAME", name)
+        editor.putString("USER_ROLE", role)
         editor.putBoolean("IS_LOGGED_IN", true)
         editor.apply()
     }
@@ -29,5 +30,8 @@ class SessionManager(context: Context) {
 
     fun logout() {
         prefs.edit().clear().apply()
+    }
+    fun getUserRole(): String {
+        return prefs.getString("USER_ROLE", "user") ?: "user"
     }
 }

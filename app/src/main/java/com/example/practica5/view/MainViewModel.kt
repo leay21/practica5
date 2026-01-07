@@ -54,6 +54,31 @@ class MainViewModel(private val repository: ShowRepository) : ViewModel() {
             repository.removeFavorite(showId)
         }
     }
+
+    // Agrega una variable para saber si estamos viendo recomendaciones
+    val isRecommendationActive = MutableLiveData(false)
+
+    fun loadRecommendations() {
+        viewModelScope.launch {
+            isRecommendationActive.postValue(true)
+
+            // 1. Obtener lista actual de favoritos (usamos first() para obtener el valor actual del Flow)
+            // Nota: Necesitas que 'repository.allFavorites' sea accesible
+            // Como Flow es asíncrono, un truco rápido es guardar una copia local en memoria
+            // O hacer una consulta simple. Para esta práctica, usaremos un truco:
+            // Si el usuario no ha buscado nada, asumimos que quiere ver recomendaciones.
+
+            // Vamos a simularlo pidiendo al repositorio buscar algo basado en un género popular
+            // o idealmente, basado en el último favorito guardado si tuviéramos esa lista en memoria.
+
+            // Estrategia Simple y Efectiva:
+            // Buscamos una serie popular fija como "semilla" si no hay datos complejos
+            val seedQuery = "Star Wars" // O "Marvel", "DC", etc.
+
+            val recommendations = repository.searchShows(seedQuery)
+            _searchResults.postValue(recommendations)
+        }
+    }
 }
 
 // Boilerplate: Fábrica para poder pasarle el Repository al ViewModel
