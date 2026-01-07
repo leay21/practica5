@@ -2,6 +2,7 @@ package com.example.practica5.data
 
 import android.util.Log
 import com.example.practica5.model.FavoriteRequest
+import com.example.practica5.model.HistoryRequest
 import com.example.practica5.model.ShowEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -69,5 +70,23 @@ class ShowRepository(
     suspend fun removeFavorite(showId: Int) {
         showDao.deleteFavorite(showId)
         // Opcional: Llamar a API para borrar en remoto también
+    }
+    suspend fun saveSearchHistory(userId: Int, query: String) {
+        try {
+            // "Fire and forget": Lo enviamos y no nos preocupa mucho si falla o no,
+            // para no detener la búsqueda del usuario.
+            myApi.addToHistory(HistoryRequest(userId, query))
+            Log.d("REPO", "Historial guardado: $query")
+        } catch (e: Exception) {
+            Log.e("REPO", "No se pudo guardar historial: ${e.message}")
+        }
+    }
+
+    suspend fun fetchHistory(): List<com.example.practica5.model.HistoryItem> {
+        return try {
+            myApi.getHistory()
+        } catch (e: Exception) {
+            emptyList()
+        }
     }
 }

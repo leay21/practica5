@@ -127,6 +127,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         // Agregamos un botón "Salir" programáticamente a la barra superior
         menu?.add(0, 1, 0, "Cerrar Sesión")?.setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
+        menu?.add(0, 2, 0, "Ver Historial (Admin)")
         return true
     }
 
@@ -141,6 +142,10 @@ class MainActivity : AppCompatActivity() {
             intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             startActivity(intent)
             finish()
+            return true
+        }
+        if (item.itemId == 2) {
+            startActivity(Intent(this, HistoryActivity::class.java))
             return true
         }
         return super.onOptionsItemSelected(item)

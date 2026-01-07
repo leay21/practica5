@@ -33,6 +33,11 @@ class LoginActivity : AppCompatActivity() {
         val etPassword = findViewById<EditText>(R.id.etPassword)
         val btnLogin = findViewById<Button>(R.id.btnLogin)
         val progressBar = findViewById<ProgressBar>(R.id.loginProgressBar)
+        val tvRegister = findViewById<android.widget.TextView>(R.id.tvGoToRegister)
+
+        tvRegister.setOnClickListener {
+            startActivity(Intent(this, RegisterActivity::class.java))
+        }
 
         btnLogin.setOnClickListener {
             val email = etEmail.text.toString()

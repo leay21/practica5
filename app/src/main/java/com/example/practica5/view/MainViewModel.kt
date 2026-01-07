@@ -27,11 +27,14 @@ class MainViewModel(private val repository: ShowRepository) : ViewModel() {
     fun search(query: String) {
         viewModelScope.launch {
             if (query.isNotEmpty()) {
+                // 1. (NUEVO) Guardar en historial remoto
+                if (currentUserId != -1) {
+                    // Lanzamos una corrutina paralela para que no frene la búsqueda
+                    launch { repository.saveSearchHistory(currentUserId, query) }
+                }
+
+                // 2. Buscar en API pública (Código existente)
                 val results = repository.searchShows(query)
-                // Verificamos cuáles de estos resultados YA son favoritos en nuestra BD
-                // Esto es un detalle de calidad (pintar el corazón si ya existe)
-                // Nota: Para hacerlo perfecto, deberíamos cruzar datos con la BD local,
-                // por ahora mostraremos los resultados tal cual vienen de la API.
                 _searchResults.postValue(results)
             }
         }

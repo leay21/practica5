@@ -1,21 +1,35 @@
 package com.example.practica5.model
 
-// Lo que enviamos al servidor
-data class LoginRequest(
-    val email: String,
-    val password: String
-)
+// Para Login
+data class LoginRequest(val email: String, val password: String)
 
-// Lo que el servidor nos responde (según tu server.js)
 data class LoginResponse(
     val success: Boolean,
     val token: String?,
     val user: UserData?,
-    val message: String? // Por si falla
+    val message: String?
 )
 
+// Para Registro (NUEVO)
+data class RegisterRequest(
+    val nombre: String,
+    val email: String,
+    val password: String
+)
+
+data class RegisterResponse(
+    val success: Boolean,
+    val message: String
+)
+
+// Usuario (Ahora incluye ROL)
 data class UserData(
     val id: Int,
     val email: String,
-    val nombre: String
+    val nombre: String,
+    val rol: String // "admin" o "user"
 )
+
+// Historial
+data class HistoryRequest(val userId: Int, val query: String)
+data class HistoryItem(val userId: Int, val query: String, val timestamp: String)

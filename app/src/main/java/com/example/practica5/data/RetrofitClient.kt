@@ -11,9 +11,12 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 import com.example.practica5.model.FavoriteRequest
 import com.example.practica5.model.FavoriteResponse
+import com.example.practica5.model.HistoryRequest
 import com.example.practica5.model.TvMazeResponse
 import com.example.practica5.model.LoginResponse
 import com.example.practica5.model.LoginRequest
+import com.example.practica5.model.RegisterRequest
+import com.example.practica5.model.RegisterResponse
 
 interface TvMazeApi {
     @GET("search/shows")
@@ -29,6 +32,15 @@ interface MyBackendApi {
 
     @POST("api/login")
     suspend fun login(@Body request: LoginRequest): retrofit2.Response<LoginResponse>
+
+    @POST("api/register")
+    suspend fun register(@Body request: RegisterRequest): retrofit2.Response<RegisterResponse>
+
+    @POST("api/historial")
+    suspend fun addToHistory(@Body request: HistoryRequest): retrofit2.Response<Void>
+
+    @GET("api/admin/historial") // OJO: Más adelante ajustaremos este para soportar /api/historial/:userId
+    suspend fun getHistory(): List<com.example.practica5.model.HistoryItem>
 }
 
 object RetrofitClient {
