@@ -14,25 +14,20 @@ import kotlinx.coroutines.flow.Flow
 // 1. El DAO (Data Access Object): Las instrucciones SQL
 @Dao
 interface ShowDao {
-    // Solo devuelve los favoritos DEL usuario actual
     @Query("SELECT * FROM shows_table WHERE isFavorite = 1 AND userId = :userId")
     fun getFavorites(userId: Int): Flow<List<ShowEntity>>
 
-    // Insertar (Reemplaza si ya existe para ese usuario)
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertShow(show: ShowEntity)
 
-    // Borrar favorito específico de un usuario
     @Query("DELETE FROM shows_table WHERE id = :showId AND userId = :userId")
     suspend fun deleteFavorite(showId: Int, userId: Int)
 
-    // Verificar si es favorito (para pintar el corazón)
-    @Query("SELECT EXISTS(SELECT * FROM shows_table WHERE id = :id AND userId = :userId AND isFavorite = 1)")
-    suspend fun isFavorite(id: Int, userId: Int): Boolean
-
-    // NUEVO: Para recomendaciones inteligentes (obtener lista inmediata)
     @Query("SELECT * FROM shows_table WHERE isFavorite = 1 AND userId = :userId LIMIT 1")
     suspend fun getOneFavorite(userId: Int): ShowEntity?
+
+    @Query("SELECT EXISTS(SELECT * FROM shows_table WHERE id = :id AND userId = :userId AND isFavorite = 1)")
+    suspend fun isFavorite(id: Int, userId: Int): Boolean
 }
 
 // 2. La Base de Datos

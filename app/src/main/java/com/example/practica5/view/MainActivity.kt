@@ -1,9 +1,9 @@
 package com.example.practica5.view
 
-import android.content.Intent // Nuevo import
+import android.content.Intent
 import android.os.Bundle
-import android.view.Menu // Nuevo import
-import android.view.MenuItem // Nuevo import
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
@@ -16,12 +16,11 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.practica5.R
 import com.example.practica5.data.AppDatabase
 import com.example.practica5.data.RetrofitClient
-import com.example.practica5.data.SessionManager // Nuevo import
+import com.example.practica5.data.SessionManager
 import com.example.practica5.data.ShowRepository
 
 class MainActivity : AppCompatActivity() {
 
-    // Referencias a la UI
     private lateinit var etSearch: EditText
     private lateinit var btnSearch: Button
     private lateinit var btnViewFavorites: Button
@@ -29,143 +28,125 @@ class MainActivity : AppCompatActivity() {
     private lateinit var progressBar: ProgressBar
     private lateinit var adapter: ShowsAdapter
 
-    // Inicialización perezosa del ViewModel
     private val viewModel: MainViewModel by viewModels {
-        val database = AppDatabase.getDatabase(applicationContext)
-        val repository = ShowRepository(
-            database.showDao(),
-            RetrofitClient.myApi,
-            RetrofitClient.tvMazeApi
-        )
-        MainViewModelFactory(repository)
+        val db = AppDatabase.getDatabase(applicationContext)
+        val repo = ShowRepository(db.showDao(), RetrofitClient.myApi, RetrofitClient.tvMazeApi)
+        MainViewModelFactory(repo)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // -----------------------------------------------------------
-        // 1. (NUEVO) VERIFICAR SESIÓN ANTES DE CARGAR LA VISTA
-        // -----------------------------------------------------------
+        // 1. Chequeo de Sesión
         val session = SessionManager(this)
         if (!session.isLoggedIn()) {
-            // Si no está logueado, mandar al Login y cerrar esta pantalla
             startActivity(Intent(this, LoginActivity::class.java))
             finish()
             return
         }
-
-        // 2. (NUEVO) CONFIGURAR EL USUARIO EN EL VIEWMODEL
-        // Recuperamos el ID guardado y se lo pasamos a la lógica
-        viewModel.currentUserId = session.getUserId()
-
-        // Opcional: Poner el nombre del usuario en la barra de arriba
+        viewModel.setUserId(session.getUserId())
         supportActionBar?.title = "Hola, ${session.getUserName()}"
-        // -----------------------------------------------------------
 
         setContentView(R.layout.activity_main)
 
-        // Vincular Vistas
+        // 2. Setup UI
         etSearch = findViewById(R.id.etSearch)
         btnSearch = findViewById(R.id.btnSearch)
         btnViewFavorites = findViewById(R.id.btnViewFavorites)
         rvShows = findViewById(R.id.rvShows)
         progressBar = findViewById(R.id.progressBar)
 
-        // Configurar RecyclerView
-        adapter = ShowsAdapter { showToAdd ->
-            // Acción al dar click en favorito
-            viewModel.addToFavorites(showToAdd)
-            Toast.makeText(this, "${showToAdd.name} guardado y sincronizando...", Toast.LENGTH_SHORT).show()
+        adapter = ShowsAdapter { show ->
+            viewModel.addToFavorites(show)
+            Toast.makeText(this, "Añadido a favoritos", Toast.LENGTH_SHORT).show()
         }
         rvShows.layoutManager = LinearLayoutManager(this)
         rvShows.adapter = adapter
 
-        // OBSERVAR resultados de Búsqueda
+        // --- OBSERVADORES ---
+
+        // A. Observar cambios en Búsqueda/Recomendaciones
         viewModel.searchResults.observe(this) { shows ->
-            progressBar.visibility = View.GONE
-            adapter.submitList(shows)
-            if (shows.isEmpty()) {
-                Toast.makeText(this, "No se encontraron resultados", Toast.LENGTH_SHORT).show()
+            if (viewModel.isShowingFavorites.value == false) {
+                progressBar.visibility = View.GONE
+                adapter.submitList(shows)
+                if (shows.isEmpty()) Toast.makeText(this, "Sin resultados", Toast.LENGTH_SHORT).show()
             }
         }
 
-        // OBSERVAR lista de Favoritos
-        viewModel.favorites.observe(this) { favoriteShows ->
-            // La lista se actualiza automáticamente gracias a Room
+        // B. Observar cambios en Favoritos (BD Local)
+        viewModel.favorites.observe(this) { favs ->
+            if (viewModel.isShowingFavorites.value == true) {
+                progressBar.visibility = View.GONE
+                adapter.submitList(favs)
+            }
         }
 
-        // Configurar Botón BUSCAR
+        // C. Observar el MODO (Búsqueda vs Favoritos)
+        viewModel.isShowingFavorites.observe(this) { isFavMode ->
+            if (isFavMode) {
+                btnViewFavorites.text = "Volver a Buscar"
+                // Si hay favoritos, mostrarlos. Si no, lista vacía.
+                val currentFavs = viewModel.favorites.value ?: emptyList()
+                adapter.submitList(currentFavs)
+            } else {
+                btnViewFavorites.text = "Ver Mis Favoritos"
+                // Si hay búsqueda previa, mostrarla. Si no, lista vacía.
+                val currentSearch = viewModel.searchResults.value ?: emptyList()
+                adapter.submitList(currentSearch)
+            }
+        }
+
+        // --- BOTONES ---
+
         btnSearch.setOnClickListener {
             val query = etSearch.text.toString()
             if (query.isNotEmpty()) {
                 progressBar.visibility = View.VISIBLE
-                viewModel.favorites.removeObservers(this)
-                viewModel.searchResults.observe(this) { list ->
-                    progressBar.visibility = View.GONE
-                    adapter.submitList(list)
-                }
-                viewModel.search(query)
+                viewModel.search(query) // Pone isShowingFavorites = false automáticamente
             }
         }
 
-        // Configurar Botón VER FAVORITOS
         btnViewFavorites.setOnClickListener {
-            etSearch.text.clear()
-            viewModel.searchResults.removeObservers(this)
-            viewModel.favorites.observe(this) { localFavorites ->
-                adapter.submitList(localFavorites)
-                if (localFavorites.isEmpty()) {
-                    Toast.makeText(this, "Aún no tienes favoritos guardados localmente", Toast.LENGTH_SHORT).show()
-                }
+            if (viewModel.isShowingFavorites.value == true) {
+                // CORREGIDO: Usamos la función del ViewModel en vez de postValue directo
+                viewModel.showSearch()
+            } else {
+                etSearch.text.clear()
+                viewModel.showFavorites()
             }
         }
     }
 
-    // -----------------------------------------------------------
-    // 3. (NUEVO) MENU PARA CERRAR SESIÓN (LOGOUT)
-    // -----------------------------------------------------------
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         val session = SessionManager(this)
-        val role = session.getUserRole()
-
         menu?.add(0, 1, 0, "Cerrar Sesión")
 
-        // Lógica de Roles en el Menú
-        if (role == "admin") {
+        // Menú dinámico según rol
+        if (session.getUserRole() == "admin") {
             menu?.add(0, 2, 0, "Ver Historial Global (Admin)")
         } else {
             menu?.add(0, 2, 0, "Ver Mi Historial")
         }
 
-        // Opción de Recomendaciones para todos
         menu?.add(0, 3, 0, "🌟 Ver Recomendaciones")
-
         return true
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == 1) { // Si pulsaron nuestro botón "Cerrar Sesión"
-            val session = SessionManager(this)
-            session.logout() // Borrar datos
-
-            // Volver al login
-            val intent = Intent(this, LoginActivity::class.java)
-            // Limpiar la pila de actividades para que no puedan volver atrás
-            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            startActivity(intent)
-            finish()
-            return true
-        }
-        if (item.itemId == 2) {
-            startActivity(Intent(this, HistoryActivity::class.java))
-            return true
-        }
-        if (item.itemId == 3) { // Recomendaciones
-            etSearch.text.clear() // Limpiar buscador
-            Toast.makeText(this, "Buscando series recomendadas...", Toast.LENGTH_SHORT).show()
-            viewModel.loadRecommendations()
-            supportActionBar?.title = "Recomendaciones para ti"
-            return true
+        when (item.itemId) {
+            1 -> {
+                SessionManager(this).logout()
+                startActivity(Intent(this, LoginActivity::class.java))
+                finish()
+            }
+            2 -> startActivity(Intent(this, HistoryActivity::class.java))
+            3 -> {
+                Toast.makeText(this, "Cargando sugerencias...", Toast.LENGTH_SHORT).show()
+                progressBar.visibility = View.VISIBLE
+                etSearch.text.clear()
+                viewModel.loadRecommendations() // Pone isShowingFavorites = false automáticamente
+            }
         }
         return super.onOptionsItemSelected(item)
     }
